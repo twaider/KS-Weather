@@ -37,28 +37,20 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
   // Store incoming information
   static char icon_buffer[8];
   static char temperature_buffer[8];
-  static char conditions_buffer[32];
-  static char weather_layer_buffer[32];
 
   // Read tuples for data
   Tuple *temp_tuple = dict_find(iterator, KEY_TEMPERATURE);
-  Tuple *conditions_tuple = dict_find(iterator, KEY_CONDITIONS);
   Tuple *icon_tuple = dict_find(iterator, KEY_ICON);
 
   // If all data is available, use it
-  if(temp_tuple && conditions_tuple && icon_tuple) {
+  if(temp_tuple && icon_tuple) {
     snprintf(temperature_buffer, sizeof(temperature_buffer), "%dC", (int)temp_tuple->value->int32);
-    snprintf(conditions_buffer, sizeof(conditions_buffer), "%s", conditions_tuple->value->cstring);
     snprintf(icon_buffer, sizeof(icon_buffer), "%s", icon_tuple->value->cstring);
 
     // Assemble full string and display
-    //snprintf(weather_layer_buffer, sizeof(weather_layer_buffer), "%s, %s", temperature_buffer, conditions_buffer);
     text_layer_set_text(s_weather_layer, icon_buffer);
     text_layer_set_text(s_weathertext_layer, temperature_buffer);
-    // text_layer_set_text(s_weather_layer, weather_layer_buffer);
-    //GRect iconRect = { .origin = { 2,2}, .size = { 20, 20} };
-    //graphics_draw_text(context, "01d", fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_NUPE_23)), iconRect, GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
-    APP_LOG(APP_LOG_LEVEL_INFO, "Temp received!");
+    //APP_LOG(APP_LOG_LEVEL_INFO, "Temp received!");
   }
 }
 
@@ -107,9 +99,7 @@ static void tick_handler(struct tm *tick_time, TimeUnits changed) {
   s_last_time.hours -= (s_last_time.hours > 12) ? 12 : 0;
   s_last_time.minutes = tick_time->tm_min;
 
-  
-   
-   // Get weather update every 30 minutes
+   // Get weather update every 30 minutes and generate a background color
   if(tick_time->tm_min % 30 == 0) {
     for(int i = 0; i < 3; i++) {
        s_color_channels[i] = rand() % 256;
@@ -220,8 +210,7 @@ static void window_load(Window *window) {
   text_layer_set_text_alignment(s_weathertext_layer, GTextAlignmentCenter);
   text_layer_set_text(s_weathertext_layer, "Loading...");
 
-  // Create second custom font, apply it and add to Window FONT_KEY_LECO_20_BOLD_NUMBERS
-  //s_weather_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_PERFECT_DOS_16));
+  // Create second custom font, apply it and add to Window
   s_weather_font = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
   s_icon_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_NUPE_23));
   text_layer_set_font(s_weathertext_layer, s_weather_font);
@@ -283,9 +272,7 @@ static void init() {
     .update = hands_update
   };
   animate(2 * ANIMATION_DURATION, ANIMATION_DELAY, &hands_impl, true);
-   
-  
-   
+      
    // Register callbacks
   app_message_register_inbox_received(inbox_received_callback);
   app_message_register_inbox_dropped(inbox_dropped_callback);
