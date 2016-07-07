@@ -182,10 +182,6 @@ static void window_load(Window *window) {
   Layer *window_layer = window_get_root_layer(window);
   GRect window_bounds = layer_get_bounds(window_layer);
    
-  for(int i = 0; i < 3; i++) {
-     s_color_channels[i] = rand() % 256;
-  }
-
   s_center = grect_center_point(&window_bounds);
 
   s_canvas_layer = layer_create(window_bounds);
@@ -223,7 +219,7 @@ static void window_unload(Window *window) {
   layer_destroy(s_canvas_layer);
    // Destroy weather elements
   text_layer_destroy(s_weather_layer);
-  fonts_unload_custom_font(s_weather_font);
+  text_layer_destroy(s_weathertext_layer);
   fonts_unload_custom_font(s_icon_font);
 }
 
@@ -252,6 +248,10 @@ static void init() {
   time_t t = time(NULL);
   struct tm *time_now = localtime(&t);
   tick_handler(time_now, MINUTE_UNIT);
+   
+   for(int i = 0; i < 3; i++) {
+     s_color_channels[i] = rand() % 256;
+  }
 
   s_main_window = window_create();
   window_set_window_handlers(s_main_window, (WindowHandlers) {
