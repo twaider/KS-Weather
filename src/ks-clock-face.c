@@ -4,7 +4,7 @@
 #define ANTIALIASING true
 
 #define HAND_MARGIN  10
-#define FINAL_RADIUS 63
+#define FINAL_RADIUS 60
 
 #define ANIMATION_DURATION 500
 #define ANIMATION_DELAY    600
@@ -194,10 +194,10 @@ static void window_load(Window *window) {
    
    // Create temperature Layer
   s_weather_layer = text_layer_create(
-      GRect(0, PBL_IF_ROUND_ELSE(125, 90), window_bounds.size.w, 25));
+      GRect(0, PBL_IF_ROUND_ELSE(90, 90), window_bounds.size.w, 25));
    
   s_weathertext_layer = text_layer_create(
-      GRect(0, PBL_IF_ROUND_ELSE(125, 112), window_bounds.size.w, 25));
+      GRect(0, PBL_IF_ROUND_ELSE(112, 112), window_bounds.size.w, 25));
 
   // Style the text
   text_layer_set_background_color(s_weather_layer, GColorClear);
