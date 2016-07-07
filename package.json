@@ -1,0 +1,43 @@
+{
+    "author": "twaider",
+    "dependencies": {},
+    "keywords": [
+        "pebble-app"
+    ],
+    "name": "ks-weather",
+    "pebble": {
+        "capabilities": [
+            "location"
+        ],
+        "displayName": "KS Weather",
+        "enableMultiJS": true,
+        "messageKeys": {
+            "KEY_CONDITIONS": 1,
+            "KEY_ICON": 2,
+            "KEY_TEMPERATURE": 0
+        },
+        "projectType": "native",
+        "resources": {
+            "media": [
+                {
+                    "characterRegex": "[0-9:\u00b0a-izA-IZ\\-]",
+                    "file": "fonts/nupe.ttf",
+                    "name": "FONT_NUPE_23",
+                    "targetPlatforms": null,
+                    "type": "font"
+                }
+            ]
+        },
+        "sdkVersion": "3",
+        "targetPlatforms": [
+            "aplite",
+            "basalt",
+            "chalk"
+        ],
+        "uuid": "e546271e-d692-4484-9713-5f2257bd1efc",
+        "watchapp": {
+            "watchface": true
+        }
+    },
+    "version": "1.0.0"
+}
