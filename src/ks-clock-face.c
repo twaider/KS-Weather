@@ -1,8 +1,8 @@
 #include <pebble.h>
 
 #define COLORS       PBL_IF_COLOR_ELSE(true, false)
-#define BG_COLOR_P 0xFF0000
-#define CUSTOM_BG_P 0
+#define BACKGROUND_CLR_P 0xFF0000
+#define BACKGROUND_ON_P 0
 #define WEATHER_ON_P 0
 #define ANTIALIASING true
 
@@ -28,10 +28,11 @@ static GFont s_icon_font;
 static GPoint s_center;
 static Time s_last_time, s_anim_time;
 static int s_radius = 0, s_color_channels[3];
-static int custom_bg_color;
+static int background_color;
  
 static bool s_animating = false;
-static bool weatherOnConf = false;
+static int weatherOnConf = 0;
+static int backgroundOnConf = 0;
 
 /*************************** appMessage **************************/
 
@@ -40,27 +41,23 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
   static char icon_buffer[8];
   static char temperature_buffer[8];
   
-  //weatherOnConf = persist_exists(WEATHER_ON_P) ? persist_read_int(WEATHER_ON_P) : 0;
-  
   // Read tuples for data
   Tuple *temp_tuple = dict_find(iterator, MESSAGE_KEY_TEMPERATURE);
   Tuple *icon_tuple = dict_find(iterator, MESSAGE_KEY_ICON);
   
   Tuple *weather_on_tuple = dict_find(iterator, MESSAGE_KEY_WEATHER_ON);
   Tuple *background_color_tuple = dict_find(iterator, MESSAGE_KEY_BACKGROUND_COLOR);
-  Tuple *custom_background_tuple = dict_find(iterator, MESSAGE_KEY_CUSTOM_BACKGROUND);
+  Tuple *background_on_tuple = dict_find(iterator, MESSAGE_KEY_CUSTOM_BACKGROUND);
   
   if ( weather_on_tuple ) {
     APP_LOG(APP_LOG_LEVEL_INFO, "weather_on_tuple available");
-    weatherOnConf = weather_on_tuple->value->int32;
-    persist_write_int(WEATHER_ON_P, weatherOnConf);
+    weatherOnConf = weather_on_tuple->value->int8;
+    persist_write_int(WEATHER_ON_P, (int)weather_on_tuple->value->int8);
   }
-  
-  APP_LOG(APP_LOG_LEVEL_INFO, "WeatherOnConf %d", weatherOnConf);
 
   // If all data is available, use it
   if(temp_tuple && icon_tuple) {
-    APP_LOG(APP_LOG_LEVEL_INFO, "temp_tuple data available");
+    APP_LOG(APP_LOG_LEVEL_INFO, "Weather data available");
     // Enable weather   
     snprintf(temperature_buffer, sizeof(temperature_buffer), "%dC", (int)temp_tuple->value->int32);
     snprintf(icon_buffer, sizeof(icon_buffer), "%s", icon_tuple->value->cstring);
@@ -70,21 +67,24 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     text_layer_set_text(s_weathertext_layer, temperature_buffer); 
   }
   
-  if (!weatherOnConf) {
+  if (weatherOnConf == 0) {
     text_layer_set_text(s_weather_layer, "");
     text_layer_set_text(s_weathertext_layer, "");
   }
   
   // If background color
-  if(background_color_tuple && custom_background_tuple) {    
-    persist_write_int(BG_COLOR_P, (int)background_color_tuple->value->int32);
-    persist_write_int(CUSTOM_BG_P, (int)custom_background_tuple->value->int32);
+  if(background_color_tuple && background_on_tuple) {    
+    persist_write_int(BACKGROUND_CLR_P, background_color_tuple->value->int32);
+    persist_write_int(BACKGROUND_ON_P, background_on_tuple->value->int8);
+    backgroundOnConf = background_on_tuple->value->int8;
     
     // Redraw
     if(s_canvas_layer) {
       layer_mark_dirty(s_canvas_layer);
     }
   }
+  
+  APP_LOG(APP_LOG_LEVEL_INFO, "WeatherOnConf %d", weatherOnConf);
 }
 
 static void inbox_dropped_callback(AppMessageResult reason, void *context) {
@@ -139,7 +139,7 @@ static void tick_handler(struct tm *tick_time, TimeUnits changed) {
   s_last_time.minutes = tick_time->tm_min;
 
    // Get weather update every 30 minutes
-  if(tick_time->tm_min % 30 == 0) {
+  if(tick_time->tm_min % 30 == 0 && weatherOnConf == 1) {
     APP_LOG(APP_LOG_LEVEL_INFO, "weatherOnConf on tick_handler %d", weatherOnConf);
     
     // Begin dictionary
@@ -171,18 +171,16 @@ static void update_proc(Layer *layer, GContext *ctx) {
   // Color background?
   GRect bounds = layer_get_bounds(layer);
   
-  if(COLORS) {
-    APP_LOG(APP_LOG_LEVEL_INFO, "SET bg color");
+  if(COLORS) {    
+    background_color = 0xFF0000;
     
-    custom_bg_color = 0xFF0000;
-    
-    if (persist_exists(BG_COLOR_P) && persist_exists(CUSTOM_BG_P)) {
-      if ( (int)persist_read_int(CUSTOM_BG_P) ) {
-        custom_bg_color = persist_read_int(BG_COLOR_P);
+    if (persist_exists(BACKGROUND_CLR_P) && persist_exists(BACKGROUND_ON_P)) {
+      if ( persist_read_int(BACKGROUND_ON_P) == 1 ) {
+        background_color = persist_read_int(BACKGROUND_CLR_P);
       }      
     }
     
-    graphics_context_set_fill_color(ctx, GColorFromHEX(custom_bg_color));
+    graphics_context_set_fill_color(ctx, GColorFromHEX(background_color));
     graphics_fill_rect(ctx, bounds, 0, GCornerNone);
     
     //} else {
@@ -245,6 +243,9 @@ static void window_load(Window *window) {
   
   layer_set_update_proc(s_canvas_layer, update_proc);
   layer_add_child(window_layer, s_canvas_layer);
+  
+  APP_LOG(APP_LOG_LEVEL_INFO, "weatherOnConf on window_load %d", weatherOnConf);
+  APP_LOG(APP_LOG_LEVEL_INFO, "backgroundOnConf on window_load %d", backgroundOnConf);
    
   // Create temperature Layer
   s_weather_layer = text_layer_create(
@@ -276,6 +277,8 @@ static void window_load(Window *window) {
 }
 
 static void window_unload(Window *window) {
+  APP_LOG(APP_LOG_LEVEL_INFO, "weatherOnConf on window_unload %d", weatherOnConf);
+  APP_LOG(APP_LOG_LEVEL_INFO, "backgroundOnConf on window_unload %d", backgroundOnConf);
   layer_destroy(s_canvas_layer);
    // Destroy weather elements
   text_layer_destroy(s_weather_layer);
@@ -312,8 +315,11 @@ static void init() {
   s_main_window = window_create();
   
   weatherOnConf = persist_exists(WEATHER_ON_P) ? persist_read_int(WEATHER_ON_P) : 0;
+  backgroundOnConf = persist_exists(BACKGROUND_ON_P) ? persist_read_int(BACKGROUND_ON_P) : 0;
+  background_color = persist_exists(BACKGROUND_CLR_P) ? persist_read_int(BACKGROUND_CLR_P) : 0xFF0000;
+  
   APP_LOG(APP_LOG_LEVEL_INFO, "weatherOnConf on init %d", weatherOnConf);
-  APP_LOG(APP_LOG_LEVEL_INFO, "WEATHER_ON_P on init %d", WEATHER_ON_P);
+  APP_LOG(APP_LOG_LEVEL_INFO, "backgroundOnConf on init %d", backgroundOnConf);
   
   window_set_window_handlers(s_main_window, (WindowHandlers) {
     .load = window_load,
@@ -344,6 +350,10 @@ static void init() {
 }
 
 static void deinit() {
+  APP_LOG(APP_LOG_LEVEL_INFO, "weatherOnConf on deinit %d", weatherOnConf);
+  APP_LOG(APP_LOG_LEVEL_INFO, "BACKGROUND_ON_P on deinit %d", backgroundOnConf);
+  persist_write_int(WEATHER_ON_P, weatherOnConf);
+  persist_write_int(BACKGROUND_ON_P, backgroundOnConf);
   window_destroy(s_main_window);
 }
 
