@@ -20,7 +20,7 @@
             "ICON",
             "BACKGROUND_COLOR",
             "WEATHER_ON",
-            "CUSTOM_BACKGROUND"
+            "BACKGROUND_ON"
         ],
         "projectType": "native",
         "resources": {

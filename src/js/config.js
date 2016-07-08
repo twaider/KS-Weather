@@ -37,7 +37,7 @@ module.exports = [
       },
       {
         "type": "toggle",
-        "messageKey": "CUSTOM_BACKGROUND",
+        "messageKey": "BACKGROUND_ON",
         "label": "Enable Custom background",
         "defaultValue": false
       }
