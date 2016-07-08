@@ -1,6 +1,9 @@
 #include <pebble.h>
 
 #define COLORS       PBL_IF_COLOR_ELSE(true, false)
+#define BG_COLOR_P 0xFF0000
+#define CUSTOM_BG_P 0
+#define WEATHER_ON_P 0
 #define ANTIALIASING true
 
 #define HAND_MARGIN  10
@@ -8,10 +11,6 @@
 
 #define ANIMATION_DURATION 500
 #define ANIMATION_DELAY    600
-
-#define KEY_TEMPERATURE 0
-#define KEY_CONDITIONS 1
-#define KEY_ICON 2
 
 typedef struct {
   int hours;
@@ -28,8 +27,11 @@ static GFont s_icon_font;
 
 static GPoint s_center;
 static Time s_last_time, s_anim_time;
-static int s_radius = 0, s_anim_hours_60 = 0, s_color_channels[3];
+static int s_radius = 0, s_color_channels[3];
+static int custom_bg_color;
+ 
 static bool s_animating = false;
+static bool weatherOnConf = false;
 
 /*************************** appMessage **************************/
 
@@ -37,20 +39,51 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
   // Store incoming information
   static char icon_buffer[8];
   static char temperature_buffer[8];
-
+  
+  //weatherOnConf = persist_exists(WEATHER_ON_P) ? persist_read_int(WEATHER_ON_P) : 0;
+  
   // Read tuples for data
-  Tuple *temp_tuple = dict_find(iterator, KEY_TEMPERATURE);
-  Tuple *icon_tuple = dict_find(iterator, KEY_ICON);
+  Tuple *temp_tuple = dict_find(iterator, MESSAGE_KEY_TEMPERATURE);
+  Tuple *icon_tuple = dict_find(iterator, MESSAGE_KEY_ICON);
+  
+  Tuple *weather_on_tuple = dict_find(iterator, MESSAGE_KEY_WEATHER_ON);
+  Tuple *background_color_tuple = dict_find(iterator, MESSAGE_KEY_BACKGROUND_COLOR);
+  Tuple *custom_background_tuple = dict_find(iterator, MESSAGE_KEY_CUSTOM_BACKGROUND);
+  
+  if ( weather_on_tuple ) {
+    APP_LOG(APP_LOG_LEVEL_INFO, "weather_on_tuple available");
+    weatherOnConf = weather_on_tuple->value->int32;
+    persist_write_int(WEATHER_ON_P, weatherOnConf);
+  }
+  
+  APP_LOG(APP_LOG_LEVEL_INFO, "WeatherOnConf %d", weatherOnConf);
 
   // If all data is available, use it
   if(temp_tuple && icon_tuple) {
+    APP_LOG(APP_LOG_LEVEL_INFO, "temp_tuple data available");
+    // Enable weather   
     snprintf(temperature_buffer, sizeof(temperature_buffer), "%dC", (int)temp_tuple->value->int32);
     snprintf(icon_buffer, sizeof(icon_buffer), "%s", icon_tuple->value->cstring);
 
     // Assemble full string and display
     text_layer_set_text(s_weather_layer, icon_buffer);
-    text_layer_set_text(s_weathertext_layer, temperature_buffer);
-    //APP_LOG(APP_LOG_LEVEL_INFO, "Temp received!");
+    text_layer_set_text(s_weathertext_layer, temperature_buffer); 
+  }
+  
+  if (!weatherOnConf) {
+    text_layer_set_text(s_weather_layer, "");
+    text_layer_set_text(s_weathertext_layer, "");
+  }
+  
+  // If background color
+  if(background_color_tuple && custom_background_tuple) {    
+    persist_write_int(BG_COLOR_P, (int)background_color_tuple->value->int32);
+    persist_write_int(CUSTOM_BG_P, (int)custom_background_tuple->value->int32);
+    
+    // Redraw
+    if(s_canvas_layer) {
+      layer_mark_dirty(s_canvas_layer);
+    }
   }
 }
 
@@ -93,17 +126,22 @@ static void animate(int duration, int delay, AnimationImplementation *implementa
 
 /************************************ UI **************************************/
 
+static void setRandomColor() {
+  for(int i = 0; i < 3; i++) {
+     s_color_channels[i] = rand() % 256;
+  }
+}
+
 static void tick_handler(struct tm *tick_time, TimeUnits changed) {
   // Store time
   s_last_time.hours = tick_time->tm_hour;
   s_last_time.hours -= (s_last_time.hours > 12) ? 12 : 0;
   s_last_time.minutes = tick_time->tm_min;
 
-   // Get weather update every 30 minutes and generate a background color
+   // Get weather update every 30 minutes
   if(tick_time->tm_min % 30 == 0) {
-    for(int i = 0; i < 3; i++) {
-       s_color_channels[i] = rand() % 256;
-    }
+    APP_LOG(APP_LOG_LEVEL_INFO, "weatherOnConf on tick_handler %d", weatherOnConf);
+    
     // Begin dictionary
     DictionaryIterator *iter;
     app_message_outbox_begin(&iter);
@@ -113,6 +151,10 @@ static void tick_handler(struct tm *tick_time, TimeUnits changed) {
 
     // Send the message!
     app_message_outbox_send();
+  }
+  
+  if(tick_time->tm_min % 10 == 0) {
+    setRandomColor();
   }
 
   // Redraw
@@ -128,9 +170,24 @@ static int hours_to_minutes(int hours_out_of_12) {
 static void update_proc(Layer *layer, GContext *ctx) {
   // Color background?
   GRect bounds = layer_get_bounds(layer);
+  
   if(COLORS) {
-    graphics_context_set_fill_color(ctx, GColorFromRGB(s_color_channels[0], s_color_channels[1], s_color_channels[2]));
+    APP_LOG(APP_LOG_LEVEL_INFO, "SET bg color");
+    
+    custom_bg_color = 0xFF0000;
+    
+    if (persist_exists(BG_COLOR_P) && persist_exists(CUSTOM_BG_P)) {
+      if ( (int)persist_read_int(CUSTOM_BG_P) ) {
+        custom_bg_color = persist_read_int(BG_COLOR_P);
+      }      
+    }
+    
+    graphics_context_set_fill_color(ctx, GColorFromHEX(custom_bg_color));
     graphics_fill_rect(ctx, bounds, 0, GCornerNone);
+    
+    //} else {
+      //graphics_context_set_fill_color(ctx, GColorFromRGB(s_color_channels[0], s_color_channels[1], s_color_channels[2]));
+    //}
   }
 
   graphics_context_set_stroke_color(ctx, GColorBlack);
@@ -185,13 +242,15 @@ static void window_load(Window *window) {
   s_center = grect_center_point(&window_bounds);
 
   s_canvas_layer = layer_create(window_bounds);
+  
   layer_set_update_proc(s_canvas_layer, update_proc);
   layer_add_child(window_layer, s_canvas_layer);
    
-   // Create temperature Layer
+  // Create temperature Layer
   s_weather_layer = text_layer_create(
       GRect(0, PBL_IF_ROUND_ELSE(90, 90), window_bounds.size.w, 25));
-   
+  
+  // Create weather icon Layer
   s_weathertext_layer = text_layer_create(
       GRect(0, PBL_IF_ROUND_ELSE(112, 112), window_bounds.size.w, 25));
 
@@ -204,13 +263,14 @@ static void window_load(Window *window) {
   text_layer_set_background_color(s_weathertext_layer, GColorClear);
   text_layer_set_text_color(s_weathertext_layer, GColorBlack);
   text_layer_set_text_alignment(s_weathertext_layer, GTextAlignmentCenter);
-  text_layer_set_text(s_weathertext_layer, "Loading...");
 
-  // Create second custom font, apply it and add to Window
+  // Set fonts
   s_weather_font = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
   s_icon_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_NUPE_23));
   text_layer_set_font(s_weathertext_layer, s_weather_font);
   text_layer_set_font(s_weather_layer, s_icon_font);
+  
+  // Add layers
   layer_add_child(window_get_root_layer(window), text_layer_get_layer(s_weathertext_layer));
   layer_add_child(window_get_root_layer(window), text_layer_get_layer(s_weather_layer));
 }
@@ -248,12 +308,13 @@ static void init() {
   time_t t = time(NULL);
   struct tm *time_now = localtime(&t);
   tick_handler(time_now, MINUTE_UNIT);
-   
-   for(int i = 0; i < 3; i++) {
-     s_color_channels[i] = rand() % 256;
-  }
-
+  
   s_main_window = window_create();
+  
+  weatherOnConf = persist_exists(WEATHER_ON_P) ? persist_read_int(WEATHER_ON_P) : 0;
+  APP_LOG(APP_LOG_LEVEL_INFO, "weatherOnConf on init %d", weatherOnConf);
+  APP_LOG(APP_LOG_LEVEL_INFO, "WEATHER_ON_P on init %d", WEATHER_ON_P);
+  
   window_set_window_handlers(s_main_window, (WindowHandlers) {
     .load = window_load,
     .unload = window_unload,
@@ -277,10 +338,9 @@ static void init() {
   app_message_register_inbox_received(inbox_received_callback);
   app_message_register_inbox_dropped(inbox_dropped_callback);
   app_message_register_outbox_failed(outbox_failed_callback);
-  app_message_register_outbox_sent(outbox_sent_callback);
-
-  // Open AppMessage
-  app_message_open(app_message_inbox_size_maximum(), app_message_outbox_size_maximum());
+  app_message_register_outbox_sent(outbox_sent_callback); 
+  
+  app_message_open(app_message_inbox_size_maximum(), app_message_outbox_size_maximum());  
 }
 
 static void deinit() {

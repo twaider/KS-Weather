@@ -1,21 +1,27 @@
 {
     "author": "twaider",
-    "dependencies": {},
+    "dependencies": {
+        "pebble-clay": "^1.0.1"
+    },
     "keywords": [
         "pebble-app"
     ],
     "name": "ks-weather",
     "pebble": {
         "capabilities": [
-            "location"
+            "location",
+            "configurable"
         ],
         "displayName": "KS Weather",
         "enableMultiJS": true,
-        "messageKeys": {
-            "KEY_CONDITIONS": 1,
-            "KEY_ICON": 2,
-            "KEY_TEMPERATURE": 0
-        },
+        "messageKeys": [
+            "TEMPERATURE",
+            "CONDITIONS",
+            "ICON",
+            "BACKGROUND_COLOR",
+            "WEATHER_ON",
+            "CUSTOM_BACKGROUND"
+        ],
         "projectType": "native",
         "resources": {
             "media": [
