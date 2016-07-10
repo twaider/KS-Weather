@@ -43,15 +43,16 @@ var xhrRequest = function (url, type, callback) {
 
 function locationSuccess(pos) {
   // Construct URL
+  var units = 'metric';
   var url = "http://api.openweathermap.org/data/2.5/weather?lat=" +
-      pos.coords.latitude + "&lon=" + pos.coords.longitude + '&cnt=1&appid=' + myAPIKey;
+      pos.coords.latitude + "&lon=" + pos.coords.longitude + '&cnt=1&units=' + units + '&appid=' + myAPIKey;
 
   // Send request to OpenWeatherMap
   xhrRequest(url, 'GET', 
     function(responseText) {
       // responseText contains a JSON object with weather info
       var json = JSON.parse(responseText);
-
+      console.log(json.main);
       // Temperature in Kelvin requires adjustment
       var temperature = Math.round(json.main.temp - 273.15);
       console.log("Temperature is " + temperature);
