@@ -1,11 +1,11 @@
 module.exports = [
   {
     "type": "heading",
-    "defaultValue": "App Configuration"
+    "defaultValue": "KS Weather"
   },
   {
     "type": "text",
-    "defaultValue": "Here is some introductory text."
+    "defaultValue": "Configuration"
   },
   {
     "type": "section",
@@ -19,6 +19,12 @@ module.exports = [
         "messageKey": "BACKGROUND_COLOR",
         "defaultValue": "0xFF0000",
         "label": "Background Color"
+      },
+      {
+        "type": "toggle",
+        "messageKey": "BACKGROUND_ON",
+        "label": "Enable Custom background",
+        "defaultValue": false
       }
     ]
   },
@@ -27,20 +33,14 @@ module.exports = [
     "items": [
       {
         "type": "heading",
-        "defaultValue": "More Settings"
+        "defaultValue": "weather Settings"
       },
       {
         "type": "toggle",
         "messageKey": "WEATHER_ON",
         "label": "Enable Weather",
         "defaultValue": false
-      },
-      {
-        "type": "toggle",
-        "messageKey": "BACKGROUND_ON",
-        "label": "Enable Custom background",
-        "defaultValue": false
-      }
+      }      
     ]
   },
   {
