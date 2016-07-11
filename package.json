@@ -16,11 +16,13 @@
         "enableMultiJS": true,
         "messageKeys": [
             "TEMPERATURE",
-            "CONDITIONS",
+            "UNITS",
             "ICON",
             "BACKGROUND_COLOR",
             "WEATHER_ON",
-            "BACKGROUND_ON"
+            "BACKGROUND_ON",
+            "LOCATION",
+            "WEATHER_SAFEMODE"
         ],
         "projectType": "native",
         "resources": {

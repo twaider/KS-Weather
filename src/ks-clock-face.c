@@ -9,6 +9,9 @@
 #define ANIMATION_DURATION 500
 #define ANIMATION_DELAY    600
 
+#define SAFEMODE_ON  0
+#define SAFEMODE_OFF 6
+
 typedef struct {
   int hours;
   int minutes;
@@ -28,6 +31,8 @@ static int s_radius = 0, s_color_channels[3];
 static int background_color;
 
 static bool s_animating = false;
+static bool weather_units_conf = false;
+static bool weather_safemode_conf = true;
 static bool weather_on_conf = false;
 static bool background_on_conf = false;
 
@@ -37,9 +42,12 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
   // Store incoming information
   static char icon_buffer[8];
   static char temperature_buffer[8];
+  static int temperature;
 
   // Read tuples for data
+  Tuple *weather_units_tuple = dict_find(iterator, MESSAGE_KEY_UNITS);
   Tuple *weather_on_tuple = dict_find(iterator, MESSAGE_KEY_WEATHER_ON);
+  Tuple *weather_safemode_tuple = dict_find(iterator, MESSAGE_KEY_WEATHER_SAFEMODE);
   Tuple *temp_tuple = dict_find(iterator, MESSAGE_KEY_TEMPERATURE);
   Tuple *icon_tuple = dict_find(iterator, MESSAGE_KEY_ICON);  
   Tuple *background_color_tuple = dict_find(iterator, MESSAGE_KEY_BACKGROUND_COLOR);
@@ -51,11 +59,31 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     weather_on_conf = (bool)weather_on_tuple->value->int16;
     persist_write_bool(MESSAGE_KEY_WEATHER_ON, weather_on_conf);
   }
+  
+  if ( weather_safemode_tuple ) {
+      weather_safemode_conf = (bool)weather_safemode_tuple->value->int16;
+      persist_write_bool(MESSAGE_KEY_WEATHER_SAFEMODE, weather_safemode_conf);
+  }
+  
+  if ( weather_units_tuple ) {
+      weather_units_conf = (bool)weather_units_tuple->value->int16;
+      persist_write_bool(MESSAGE_KEY_UNITS, weather_units_conf);
+  }
 
   // If all data is available, use it
-  if(temp_tuple && icon_tuple) {
+  if ( temp_tuple && icon_tuple ) {
     // Assemble strings for temp and icon
-    snprintf(temperature_buffer, sizeof(temperature_buffer), "%dC", (int)temp_tuple->value->int32);
+    
+    if ( weather_units_conf ) {
+      // Convert Kalvin to Fahrenheit F = T(K) × 9/5 - 459.67
+      temperature = ( (float)temp_tuple->value->int32 * 9 / 5) - 459.67;
+      snprintf(temperature_buffer, sizeof(temperature_buffer), "%dF", temperature);
+    } else {
+      // Convert Kalvin to Celsius
+      temperature = (float)temp_tuple->value->int32 - 273.15;
+      snprintf(temperature_buffer, sizeof(temperature_buffer), "%dC", temperature);
+    }
+    
     snprintf(icon_buffer, sizeof(icon_buffer), "%s", icon_tuple->value->cstring);
 
     // Set temp and icon to text layers
@@ -64,13 +92,13 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
   }
 
   // If weather disabled, clear weather layers
-  if (!weather_on_conf) {
+  if ( !weather_on_conf ) {
     text_layer_set_text(s_weather_layer, "");
     text_layer_set_text(s_weathertext_layer, "");
   }
 
   // If background color and enabled
-  if (background_color_tuple && background_on_tuple) {   
+  if ( background_color_tuple && background_on_tuple ) {   
     // Set background on/off
     background_on_conf = (bool)background_on_tuple->value->int16;
     persist_write_bool(MESSAGE_KEY_BACKGROUND_ON, background_on_conf);  
@@ -79,11 +107,12 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     persist_write_int(MESSAGE_KEY_BACKGROUND_COLOR, background_color);
     
     // Redraw
-    if(s_canvas_layer) {
+    if ( s_canvas_layer ) {
       layer_mark_dirty(s_canvas_layer);
     }
   }
 
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "weather_units_conf %d", weather_units_conf);
   APP_LOG(APP_LOG_LEVEL_DEBUG, "weather_on_conf %d", weather_on_conf);
   APP_LOG(APP_LOG_LEVEL_DEBUG, "background_on_conf %d", background_on_conf);
   APP_LOG(APP_LOG_LEVEL_DEBUG, "background_color %d", background_color);
@@ -117,7 +146,7 @@ static void animate(int duration, int delay, AnimationImplementation *implementa
   animation_set_delay(anim, delay);
   animation_set_curve(anim, AnimationCurveEaseInOut);
   animation_set_implementation(anim, implementation);
-  if(handlers) {
+  if ( handlers ) {
     animation_set_handlers(anim, (AnimationHandlers) {
       .started = animation_started,
       .stopped = animation_stopped
@@ -129,20 +158,30 @@ static void animate(int duration, int delay, AnimationImplementation *implementa
 /************************************ UI **************************************/
 
 static void setRandomColor() {
-  for(int i = 0; i < 3; i++) {
+  for ( int i = 0; i < 3; i++ ) {
      s_color_channels[i] = rand() % 256;
   }
 }
 
 static void tick_handler(struct tm *tick_time, TimeUnits changed) {
+  static bool in_interval = true;
+  
+  // APP_LOG(APP_LOG_LEVEL_DEBUG, "tm_hour %d", tick_time->tm_hour);
+  
   // Store time
   s_last_time.hours = tick_time->tm_hour;
   s_last_time.hours -= (s_last_time.hours > 12) ? 12 : 0;
   s_last_time.minutes = tick_time->tm_min;
+  
+  if ( weather_safemode_conf ) {
+    if ( tick_time->tm_hour >= SAFEMODE_ON && tick_time->tm_hour <= SAFEMODE_OFF ) {
+      in_interval = false;
+      // APP_LOG(APP_LOG_LEVEL_DEBUG, "in_interval");
+    }
+  }
 
-   // Get weather update every 30 minutes
-  if(tick_time->tm_min % 30 == 0 && weather_on_conf) {
-
+  // Get weather update every 30 minutes
+  if ( tick_time->tm_min % 30 == 0 && weather_on_conf && in_interval ) {
     // Begin dictionary
     DictionaryIterator *iter;
     app_message_outbox_begin(&iter);
@@ -154,12 +193,12 @@ static void tick_handler(struct tm *tick_time, TimeUnits changed) {
     app_message_outbox_send();
   }
 
-  if(tick_time->tm_min % 10 == 0) {
+  if ( tick_time->tm_min % 10 == 0 ) {
     setRandomColor();
   }
 
   // Redraw
-  if(s_canvas_layer) {
+  if ( s_canvas_layer ) {
     layer_mark_dirty(s_canvas_layer);
   }
 }
@@ -172,7 +211,7 @@ static void update_proc(Layer *layer, GContext *ctx) {
   // Color background?
   GRect bounds = layer_get_bounds(layer);
 
-  if (COLORS) {
+  if ( COLORS ) {
     graphics_context_set_fill_color(ctx, GColorFromHEX(background_color));
     graphics_fill_rect(ctx, bounds, 0, GCornerNone);
   }
@@ -195,7 +234,7 @@ static void update_proc(Layer *layer, GContext *ctx) {
   // Adjust for minutes through the hour
   float minute_angle = TRIG_MAX_ANGLE * mode_time.minutes / 60;
   float hour_angle;
-  if(s_animating) {
+  if ( s_animating ) {
     // Hours out of 60 for smoothness
     hour_angle = TRIG_MAX_ANGLE * mode_time.hours / 60;
   } else {
@@ -214,10 +253,10 @@ static void update_proc(Layer *layer, GContext *ctx) {
   };
 
   // Draw hands with positive length only
-  if(s_radius > 2 * HAND_MARGIN) {
+  if ( s_radius > 2 * HAND_MARGIN ) {
     graphics_draw_line(ctx, s_center, hour_hand);
   }
-  if(s_radius > HAND_MARGIN) {
+  if ( s_radius > HAND_MARGIN ) {
     graphics_draw_line(ctx, s_center, minute_hand);
   }
 }
@@ -299,11 +338,10 @@ static void init() {
   s_main_window = window_create();
 
   weather_on_conf = persist_exists(MESSAGE_KEY_WEATHER_ON) ? persist_read_bool(MESSAGE_KEY_WEATHER_ON) : false;
+  weather_safemode_conf = persist_exists(MESSAGE_KEY_WEATHER_SAFEMODE) ? persist_read_bool(MESSAGE_KEY_WEATHER_SAFEMODE) : true;
+  weather_units_conf = persist_exists(MESSAGE_KEY_UNITS) ? persist_read_bool(MESSAGE_KEY_UNITS) : false;
   background_on_conf = persist_exists(MESSAGE_KEY_BACKGROUND_ON) ? persist_read_bool(MESSAGE_KEY_BACKGROUND_ON) : false;
   background_color = persist_exists(MESSAGE_KEY_BACKGROUND_COLOR) ? persist_read_int(MESSAGE_KEY_BACKGROUND_COLOR) : 0xFF0000;
-
-  APP_LOG(APP_LOG_LEVEL_INFO, "weather_on_conf on init %d", weather_on_conf);
-  APP_LOG(APP_LOG_LEVEL_INFO, "background_on_conf on init %d", background_on_conf);
 
   window_set_window_handlers(s_main_window, (WindowHandlers) {
     .load = window_load,
