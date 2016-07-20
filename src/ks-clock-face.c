@@ -35,6 +35,7 @@ static bool weather_units_conf = false;
 static bool weather_safemode_conf = true;
 static bool weather_on_conf = false;
 static bool background_on_conf = false;
+static bool in_interval = true;
 
 /*************************** appMessage **************************/
 
@@ -157,13 +158,13 @@ static void animate(int duration, int delay, AnimationImplementation *implementa
 static void setRandomColor() {
   for ( int i = 0; i < 3; i++ ) {
      s_color_channels[i] = rand() % 256;
-  }
+  }  
 }
 
 static void tick_handler(struct tm *tick_time, TimeUnits changed) {
-  static bool in_interval = true;
+  in_interval = true;
   
-  // APP_LOG(APP_LOG_LEVEL_DEBUG, "tm_hour %d", tick_time->tm_hour);
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "tm_hour %d, %d", tick_time->tm_hour, tick_time->tm_min);
   
   // Store time
   s_last_time.hours = tick_time->tm_hour;
@@ -173,9 +174,13 @@ static void tick_handler(struct tm *tick_time, TimeUnits changed) {
   if ( weather_safemode_conf ) {
     if ( tick_time->tm_hour >= SAFEMODE_ON && tick_time->tm_hour <= SAFEMODE_OFF ) {
       in_interval = false;
-      // APP_LOG(APP_LOG_LEVEL_DEBUG, "in_interval");
+      APP_LOG(APP_LOG_LEVEL_DEBUG, "in_interval");
+    } else {
+      in_interval = true;
     }
   }
+  
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "in_interval %d", in_interval);
 
   // Get weather update every 30 minutes
   if ( tick_time->tm_min % 30 == 0 && weather_on_conf && in_interval ) {
@@ -190,9 +195,9 @@ static void tick_handler(struct tm *tick_time, TimeUnits changed) {
     app_message_outbox_send();
   }
 
-  if ( tick_time->tm_min % 10 == 0 ) {
-    setRandomColor();
-  }
+  //if ( tick_time->tm_min % 30 == 0 ) {
+   // setRandomColor();
+  //}
 
   // Redraw
   if ( s_canvas_layer ) {

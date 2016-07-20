@@ -51,7 +51,7 @@ var xhrRequest = function ( url, type, callback ) {
 
 function locationSuccess ( pos ) {
    // Construct URL
-  var units = getLocalStorageItem("UNITS") ? "&units=imperial" : "&units=metric";
+   var units = getLocalStorageItem("UNITS") ? "&units=imperial" : "&units=metric";
    var loc = getLocalStorageItem("LOCATION") ? "q=" + getLocalStorageItem("LOCATION") : "lat=" + pos.coords.latitude + "&lon=" + pos.coords.longitude;
    var url = "http://api.openweathermap.org/data/2.5/weather?" + loc + '&cnt=1&appid=' + myAPIKey + units;
    console.log('url: ' + url);
