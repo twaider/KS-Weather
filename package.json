@@ -16,11 +16,13 @@
         "enableMultiJS": true,
         "messageKeys": [
             "TEMPERATURE",
-            "CONDITIONS",
+            "UNITS",
             "ICON",
             "BACKGROUND_COLOR",
             "WEATHER_ON",
-            "CUSTOM_BACKGROUND"
+            "BACKGROUND_ON",
+            "LOCATION",
+            "WEATHER_SAFEMODE"
         ],
         "projectType": "native",
         "resources": {
@@ -52,5 +54,5 @@
             "watchface": true
         }
     },
-    "version": "1.0.0"
+    "version": "1.3.0"
 }
