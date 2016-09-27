@@ -79,7 +79,7 @@ function locationSuccess(pos) {
     console.log('Condition ' + json.weather[0].main);
 
     // Assemble dictionary using our keys
-    var dictionary = {'TEMPERATURE': temperature, 'ICON': icon, 'WEATHER_STATUS': 1};
+    var dictionary = {'TEMPERATURE': temperature, 'ICON': icon, 'WEATHER_ON': 1};
 
     // Send to Pebble
     Pebble.sendAppMessage(
